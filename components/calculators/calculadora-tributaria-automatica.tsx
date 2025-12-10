@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -45,6 +45,8 @@ export function CalculadoraTributariaAutomatica() {
   const [produtosFiltrados, setProdutosFiltrados] = useState<Produto[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const [resultado, setResultado] = useState<{
     valorTotal: number
     icms: number
@@ -63,18 +65,29 @@ export function CalculadoraTributariaAutomatica() {
     if (!termo && categoria === "todas") {
       setProdutosFiltrados([])
       setErro(null)
+      setShowDropdown(false)
       return
     }
 
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    abortControllerRef.current = new AbortController()
+
     setIsLoading(true)
+    setShowDropdown(true)
     setErro(null)
+    
     try {
       const params = new URLSearchParams()
       if (termo) params.set('q', termo)
       if (categoria && categoria !== 'todas') params.set('categoria', categoria)
       params.set('limit', '15')
 
-      const response = await fetch(`/api/produtos/search?${params.toString()}`)
+      const response = await fetch(`/api/produtos/search?${params.toString()}`, {
+        signal: abortControllerRef.current.signal
+      })
       
       if (!response.ok) {
         throw new Error('Erro ao conectar com o servidor')
@@ -89,6 +102,10 @@ export function CalculadoraTributariaAutomatica() {
         setProdutosFiltrados(data.produtos || [])
       }
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // Request was cancelled, ignore
+        return
+      }
       console.error('Erro ao buscar produtos:', error)
       setErro('Erro ao buscar produtos. Tente novamente.')
       setProdutosFiltrados([])
@@ -113,6 +130,7 @@ export function CalculadoraTributariaAutomatica() {
     setProdutoSelecionado(produto)
     setBusca("")
     setProdutosFiltrados([])
+    setShowDropdown(false)
   }
 
   const calcular = () => {
@@ -239,6 +257,7 @@ export function CalculadoraTributariaAutomatica() {
     setBusca("")
     setCategoriaFiltro("todas")
     setProdutosFiltrados([])
+    setShowDropdown(false)
   }
 
   return (
@@ -272,20 +291,33 @@ export function CalculadoraTributariaAutomatica() {
                 <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
               )}
             </div>
-            {produtosFiltrados.length > 0 && !produtoSelecionado && (
+            {showDropdown && !produtoSelecionado && (busca.length >= 2 || categoriaFiltro !== "todas") && (
               <div className="absolute z-10 mt-1 w-full max-w-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-auto">
-                {produtosFiltrados.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => selecionarProduto(p)}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-0"
-                  >
-                    <div className="font-medium text-gray-900 dark:text-white">{p.nome}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      GTIN: {p.gtin} | NCM: {p.ncm} | {p.categoria}
-                    </div>
-                  </button>
-                ))}
+                {isLoading ? (
+                  <div className="flex items-center justify-center gap-3 px-4 py-6">
+                    <Loader2 className="h-5 w-5 text-[#FF7A00] animate-spin" />
+                    <span className="text-gray-600 dark:text-gray-400">Pesquisando produtos...</span>
+                  </div>
+                ) : produtosFiltrados.length > 0 ? (
+                  produtosFiltrados.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => selecionarProduto(p)}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-0"
+                    >
+                      <div className="font-medium text-gray-900 dark:text-white">{p.nome}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        GTIN: {p.gtin} | NCM: {p.ncm} | {p.categoria}
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                    <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Nenhum produto encontrado</p>
+                    <p className="text-xs mt-1">Tente outro termo de busca</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
