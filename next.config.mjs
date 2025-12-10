@@ -10,12 +10,9 @@ const nextConfig = {
     buildActivity: false,
   },
   allowedDevOrigins: [
-    '*.replit.dev',
-    '*.replit.app',
-    '*.repl.co',
-    '*.kirk.replit.dev',
-    '127.0.0.1',
-    'localhost'
+    '69cc3899-0e0c-4a8f-96e8-f47edd6a71e6-00-2yhwh9ehwvc80.worf.replit.dev',
+    'localhost',
+    '127.0.0.1'
   ],
   async headers() {
     return [
