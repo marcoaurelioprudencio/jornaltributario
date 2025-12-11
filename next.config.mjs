@@ -10,10 +10,10 @@ const nextConfig = {
     buildActivity: false,
   },
   allowedDevOrigins: [
-    '69cc3899-0e0c-4a8f-96e8-f47edd6a71e6-00-2yhwh9ehwvc80.worf.replit.dev',
     'localhost',
-    '127.0.0.1'
-  ],
+    '127.0.0.1',
+    process.env.REPLIT_DEV_DOMAIN,
+  ].filter(Boolean),
   async headers() {
     return [
       {
